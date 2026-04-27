@@ -1,4 +1,5 @@
 import asyncio
+import logging
 from collections.abc import Callable, Iterable
 from typing import Any
 from urllib.parse import parse_qs, urlparse
@@ -12,6 +13,7 @@ ExtractInfoFn = Callable[[str], dict[str, Any]]
 
 _IMAGE_EXTENSIONS = {"jpg", "jpeg", "png", "webp", "gif"}
 _VIDEO_EXTENSIONS = {"mp4", "mov", "m4v", "webm"}
+logger = logging.getLogger(__name__)
 
 
 async def extract_media(
@@ -36,6 +38,7 @@ async def extract_media(
     except ExtractorError:
         raise
     except Exception as exc:
+        logger.exception("Failed to extract media from %s", normalized_url)
         if _looks_like_login_required(exc):
             raise ExtractorError(
                 "LOGIN_REQUIRED",

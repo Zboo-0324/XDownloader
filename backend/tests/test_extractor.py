@@ -1,4 +1,5 @@
 import asyncio
+import logging
 
 import pytest
 
@@ -163,3 +164,19 @@ async def test_extract_media_maps_unknown_errors_to_structured_error():
 
     assert exc_info.value.code == "EXTRACT_FAILED"
     assert exc_info.value.message == "解析失败，请确认链接有效或稍后重试。"
+
+
+@pytest.mark.asyncio
+async def test_extract_media_logs_unknown_extractor_errors(caplog):
+    def broken(_url):
+        raise RuntimeError("upstream changed")
+
+    with caplog.at_level(logging.ERROR, logger="app.extractor"):
+        with pytest.raises(ExtractorError):
+            await extract_media(
+                "https://x.com/alice/status/6",
+                extract_info=broken,
+            )
+
+    assert "Failed to extract media from https://x.com/alice/status/6" in caplog.text
+    assert "RuntimeError: upstream changed" in caplog.text
