@@ -1,5 +1,6 @@
 .uv-cache/
 .npm-cache/
+backups/
 .pytest_cache/
 __pycache__/
 *.py[cod]
