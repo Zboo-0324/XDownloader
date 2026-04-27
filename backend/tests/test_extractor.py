@@ -4,7 +4,7 @@ import logging
 import pytest
 
 from app.errors import ExtractorError
-from app.extractor import extract_media, normalize_info
+from app.extractor import extract_media, normalize_info, _syndication_info_from_payload
 
 
 def test_normalize_info_returns_sorted_video_formats():
@@ -109,6 +109,32 @@ def test_normalize_info_uses_thumbnails_as_image_fallback_when_no_formats_exist(
     assert result.items[0].url.endswith("name=orig")
 
 
+def test_syndication_info_from_payload_returns_photo_entries():
+    payload = {
+        "text": "A photo post",
+        "user": {"name": "Alice", "screen_name": "alice"},
+        "mediaDetails": [
+            {
+                "type": "photo",
+                "media_url_https": "https://pbs.twimg.com/media/demo.jpg",
+                "original_info": {"width": 1200, "height": 900},
+            }
+        ],
+    }
+
+    result = _syndication_info_from_payload(payload)
+
+    assert result is not None
+    assert result["title"] == "A photo post"
+    assert result["uploader"] == "Alice"
+    assert result["entries"][0]["images"][0] == {
+        "url": "https://pbs.twimg.com/media/demo.jpg?name=orig",
+        "width": 1200,
+        "height": 900,
+        "ext": "jpg",
+    }
+
+
 def test_normalize_info_raises_no_media_when_nothing_downloadable_exists():
     with pytest.raises(ExtractorError) as exc_info:
         normalize_info({"title": "No media"}, "https://x.com/alice/status/3")
@@ -164,6 +190,62 @@ async def test_extract_media_maps_unknown_errors_to_structured_error():
 
     assert exc_info.value.code == "EXTRACT_FAILED"
     assert exc_info.value.message == "解析失败，请确认链接有效或稍后重试。"
+
+
+@pytest.mark.asyncio
+async def test_extract_media_falls_back_to_syndication_images_when_tweet_has_no_video(
+    monkeypatch,
+):
+    def no_video(_url):
+        raise RuntimeError("ERROR: [twitter] 123: No video could be found in this tweet")
+
+    def syndication_info(url):
+        return {
+            "title": "Photo post",
+            "uploader": "alice",
+            "entries": [
+                {
+                    "images": [
+                        {
+                            "url": "https://pbs.twimg.com/media/demo.jpg?name=orig",
+                            "width": 1200,
+                            "height": 900,
+                            "ext": "jpg",
+                        }
+                    ]
+                }
+            ],
+        }
+
+    monkeypatch.setattr("app.extractor._extract_syndication_info", syndication_info)
+
+    result = await extract_media(
+        "https://x.com/alice/status/123",
+        extract_info=no_video,
+    )
+
+    assert result.items[0].type == "image"
+    assert result.items[0].url == "https://pbs.twimg.com/media/demo.jpg?name=orig"
+
+
+@pytest.mark.asyncio
+async def test_extract_media_maps_no_video_without_syndication_media_to_no_media(
+    monkeypatch,
+):
+    def no_video(_url):
+        raise RuntimeError("ERROR: [twitter] 123: No video could be found in this tweet")
+
+    monkeypatch.setattr("app.extractor._extract_syndication_info", lambda _url: None)
+
+    with pytest.raises(ExtractorError) as exc_info:
+        await extract_media(
+            "https://x.com/alice/status/123",
+            extract_info=no_video,
+        )
+
+    assert exc_info.value.code == "NO_MEDIA"
+    assert exc_info.value.status_code == 404
+    assert exc_info.value.message == "没有找到可下载的媒体。帖子可能没有公开视频或图片，或已删除、受限、需要登录。"
 
 
 @pytest.mark.asyncio

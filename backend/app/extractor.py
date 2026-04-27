@@ -1,8 +1,12 @@
 import asyncio
+import json
 import logging
+import math
+import urllib.error
+import urllib.request
 from collections.abc import Callable, Iterable
 from typing import Any
-from urllib.parse import parse_qs, urlparse
+from urllib.parse import parse_qs, urlencode, urlparse, urlunparse
 
 from app.errors import ExtractorError
 from app.schemas import ExtractResponse, MediaItem
@@ -13,6 +17,7 @@ ExtractInfoFn = Callable[[str], dict[str, Any]]
 
 _IMAGE_EXTENSIONS = {"jpg", "jpeg", "png", "webp", "gif"}
 _VIDEO_EXTENSIONS = {"mp4", "mov", "m4v", "webm"}
+_NO_MEDIA_MESSAGE = "没有找到可下载的媒体。帖子可能没有公开视频或图片，或已删除、受限、需要登录。"
 logger = logging.getLogger(__name__)
 
 
@@ -38,13 +43,23 @@ async def extract_media(
     except ExtractorError:
         raise
     except Exception as exc:
-        logger.exception("Failed to extract media from %s", normalized_url)
         if _looks_like_login_required(exc):
+            logger.exception("Failed to extract media from %s", normalized_url)
             raise ExtractorError(
                 "LOGIN_REQUIRED",
                 "该帖子可能是私密、受保护或需要登录，当前版本无法解析。",
                 status_code=403,
             ) from exc
+        if _looks_like_no_video_found(exc):
+            fallback_info = await asyncio.to_thread(_extract_syndication_info, normalized_url)
+            if fallback_info:
+                try:
+                    return normalize_info(fallback_info, normalized_url)
+                except ExtractorError:
+                    pass
+            raise ExtractorError("NO_MEDIA", _NO_MEDIA_MESSAGE, status_code=404) from exc
+
+        logger.exception("Failed to extract media from %s", normalized_url)
         raise ExtractorError(
             "EXTRACT_FAILED",
             "解析失败，请确认链接有效或稍后重试。",
@@ -98,6 +113,81 @@ def _extract_info_with_ytdlp(url: str) -> dict[str, Any]:
     }
     with YoutubeDL(options) as ydl:
         return ydl.extract_info(url, download=False)
+
+
+def _extract_syndication_info(url: str) -> dict[str, Any] | None:
+    status_id = _status_id_from_url(url)
+    if not status_id:
+        return None
+
+    token = _generate_syndication_token(status_id)
+    request = urllib.request.Request(
+        f"https://cdn.syndication.twimg.com/tweet-result?{urlencode({'id': status_id, 'token': token})}",
+        headers={"User-Agent": "Googlebot"},
+    )
+    try:
+        with urllib.request.urlopen(request, timeout=10) as response:
+            payload = json.loads(response.read().decode("utf-8"))
+    except (OSError, urllib.error.URLError, json.JSONDecodeError):
+        logger.exception("Failed to load syndication fallback for %s", url)
+        return None
+
+    if not isinstance(payload, dict):
+        return None
+    return _syndication_info_from_payload(payload)
+
+
+def _syndication_info_from_payload(payload: dict[str, Any]) -> dict[str, Any] | None:
+    entries: list[dict[str, Any]] = []
+    for tweet in (payload, payload.get("quoted_tweet")):
+        if not isinstance(tweet, dict):
+            continue
+
+        media_details = tweet.get("mediaDetails")
+        if not isinstance(media_details, list):
+            continue
+
+        for media in media_details:
+            if not isinstance(media, dict) or media.get("type") != "photo":
+                continue
+
+            image_url = media.get("media_url_https") or media.get("media_url")
+            if not isinstance(image_url, str) or not image_url:
+                continue
+
+            original_info = (
+                media.get("original_info") if isinstance(media.get("original_info"), dict) else {}
+            )
+            entries.append(
+                {
+                    "images": [
+                        {
+                            "url": _with_image_quality(image_url, "orig"),
+                            "width": _int_or_none(original_info.get("width") or original_info.get("w")),
+                            "height": _int_or_none(original_info.get("height") or original_info.get("h")),
+                            "ext": _extension({"url": image_url}),
+                        }
+                    ]
+                }
+            )
+
+    if not entries:
+        return None
+
+    user = payload.get("user") if isinstance(payload.get("user"), dict) else {}
+    return {
+        "title": _first_text(payload, "text", "full_text"),
+        "uploader": _first_text(user, "name", "screen_name"),
+        "thumbnail": entries[0]["images"][0]["url"],
+        "entries": entries,
+    }
+
+
+def _generate_syndication_token(status_id: str) -> str:
+    from yt_dlp.jsinterp import js_number_to_string
+
+    translation = str.maketrans(dict.fromkeys("0."))
+    return js_number_to_string((int(status_id) / 1e15) * math.pi, 36).translate(translation)
 
 
 def _iter_entries(info: dict[str, Any]) -> Iterable[dict[str, Any]]:
@@ -321,6 +411,35 @@ def _int_or_none(value: Any) -> int | None:
         return int(value)
     except (TypeError, ValueError):
         return None
+
+
+def _status_id_from_url(url: str) -> str | None:
+    path_parts = [part for part in urlparse(url).path.split("/") if part]
+    if len(path_parts) >= 3 and path_parts[-2] == "status" and path_parts[-1].isdigit():
+        return path_parts[-1]
+    if len(path_parts) >= 4 and path_parts[-3:] == ["web", "status", path_parts[-1]] and path_parts[-1].isdigit():
+        return path_parts[-1]
+    return None
+
+
+def _with_image_quality(url: str, quality: str) -> str:
+    parsed = urlparse(url)
+    query = dict(parse_qs(parsed.query, keep_blank_values=True))
+    query["name"] = [quality]
+    return urlunparse(
+        (
+            parsed.scheme,
+            parsed.netloc,
+            parsed.path,
+            parsed.params,
+            urlencode(query, doseq=True),
+            parsed.fragment,
+        )
+    )
+
+
+def _looks_like_no_video_found(exc: Exception) -> bool:
+    return "no video could be found in this tweet" in str(exc).lower()
 
 
 def _looks_like_login_required(exc: Exception) -> bool:
