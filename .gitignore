@@ -1,0 +1,15 @@
+.uv-cache/
+.npm-cache/
+.pytest_cache/
+__pycache__/
+*.py[cod]
+
+backend/.venv/
+backend/.pytest_cache/
+
+frontend/node_modules/
+frontend/dist/
+frontend/.vite/
+frontend/*.tsbuildinfo
+frontend/vite.config.js
+frontend/vite.config.d.ts
