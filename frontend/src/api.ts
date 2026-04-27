@@ -24,6 +24,17 @@ export class ApiError extends Error {
   }
 }
 
+async function readJsonResponse(response: FetchResponseLike): Promise<unknown> {
+  try {
+    return await response.json();
+  } catch (error) {
+    throw new ApiError(
+      "INVALID_JSON_RESPONSE",
+      "API 没有返回有效 JSON，请检查前端是否配置了正确的后端地址。"
+    );
+  }
+}
+
 function buildApiUrl(path: string): string {
   const baseUrl = import.meta.env.VITE_API_BASE_URL?.replace(/\/+$/, "") ?? "";
   return `${baseUrl}${path}`;
@@ -39,7 +50,7 @@ export async function extractMedia(
     body: JSON.stringify({ url })
   });
 
-  const payload = (await response.json()) as ExtractResponse | ApiErrorBody;
+  const payload = (await readJsonResponse(response)) as ExtractResponse | ApiErrorBody;
   if (!response.ok) {
     const error = (payload as ApiErrorBody).error;
     throw new ApiError(

@@ -66,4 +66,17 @@ describe("extractMedia", () => {
       extractMedia("https://x.com/alice/status/1", fetchMock)
     ).rejects.toThrow("没有找到可下载的媒体。");
   });
+
+  it("throws a readable error when the API response is empty", async () => {
+    const fetchMock = vi.fn().mockResolvedValue({
+      ok: false,
+      json: async () => {
+        throw new SyntaxError("Unexpected end of JSON input");
+      }
+    });
+
+    await expect(
+      extractMedia("https://x.com/alice/status/1", fetchMock)
+    ).rejects.toThrow("API 没有返回有效 JSON，请检查前端是否配置了正确的后端地址。");
+  });
 });

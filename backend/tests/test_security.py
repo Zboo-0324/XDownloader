@@ -16,6 +16,12 @@ def test_validate_tweet_url_accepts_twitter_status_url():
     assert result == "https://twitter.com/example/status/1234567890"
 
 
+def test_validate_tweet_url_normalizes_i_status_url():
+    result = validate_tweet_url("https://x.com/i/status/1234567890?s=20")
+
+    assert result == "https://x.com/i/web/status/1234567890"
+
+
 @pytest.mark.parametrize(
     "url",
     [
