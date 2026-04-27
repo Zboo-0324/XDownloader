@@ -113,6 +113,7 @@ def test_normalize_info_raises_no_media_when_nothing_downloadable_exists():
         normalize_info({"title": "No media"}, "https://x.com/alice/status/3")
 
     assert exc_info.value.code == "NO_MEDIA"
+    assert exc_info.value.message == "没有找到可下载的媒体。"
 
 
 @pytest.mark.asyncio
@@ -131,6 +132,7 @@ async def test_extract_media_maps_timeout_to_structured_error():
         )
 
     assert exc_info.value.code == "TIMEOUT"
+    assert exc_info.value.message == "解析超时，请稍后重试。"
 
 
 @pytest.mark.asyncio
@@ -145,6 +147,7 @@ async def test_extract_media_maps_login_errors_to_structured_error():
         )
 
     assert exc_info.value.code == "LOGIN_REQUIRED"
+    assert exc_info.value.message == "该帖子可能是私密、受保护或需要登录，当前版本无法解析。"
 
 
 @pytest.mark.asyncio
@@ -159,3 +162,4 @@ async def test_extract_media_maps_unknown_errors_to_structured_error():
         )
 
     assert exc_info.value.code == "EXTRACT_FAILED"
+    assert exc_info.value.message == "解析失败，请确认链接有效或稍后重试。"

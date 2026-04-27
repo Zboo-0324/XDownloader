@@ -1,0 +1,7 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 512 512" role="img" aria-label="XDownloader">
+  <rect width="512" height="512" rx="112" fill="#2563eb"/>
+  <path d="M155 166h202v42H155z" fill="#ffffff"/>
+  <path d="M235 118h42v193h-42z" fill="#ffffff"/>
+  <path d="M177 272l79 79 79-79-30-30-49 49-49-49z" fill="#ffffff"/>
+  <path d="M151 364h210v42H151z" fill="#9eead8"/>
+</svg>

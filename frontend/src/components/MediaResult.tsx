@@ -1,4 +1,4 @@
-import { Download, FileImage, FileVideo, ImageIcon } from "lucide-react";
+import { Download, ExternalLink, FileImage, FileVideo, ImageIcon } from "lucide-react";
 
 import type { ExtractResponse, MediaItem } from "../types";
 
@@ -8,7 +8,7 @@ interface MediaResultProps {
 
 export function MediaResult({ result }: MediaResultProps) {
   if (result.items.length === 0) {
-    return <p className="empty-state">没有找到媒体。</p>;
+    return <p className="empty-state">没有找到可下载的媒体。</p>;
   }
 
   return (
@@ -16,12 +16,16 @@ export function MediaResult({ result }: MediaResultProps) {
       <div className="result-header">
         <div>
           <p className="source">{result.author ? `@${result.author}` : "X/Twitter"}</p>
-          <h2>{result.title || "媒体资源"}</h2>
+          <h2>{result.title || "媒体结果"}</h2>
         </div>
         <a className="source-link" href={result.source_url} target="_blank" rel="noreferrer">
-          原帖
+          查看原帖
         </a>
       </div>
+
+      {result.thumbnail ? (
+        <img className="thumbnail" src={result.thumbnail} alt="" loading="lazy" />
+      ) : null}
 
       <div className="media-list">
         {result.items.map((item) => (
@@ -41,6 +45,8 @@ function MediaRow({ item }: { item: MediaItem }) {
     ) : (
       <FileVideo aria-hidden="true" />
     );
+  const format = mediaFormat(item);
+  const actionDetail = `${item.quality}${format ? ` ${format}` : ""}`;
 
   return (
     <article className="media-item">
@@ -49,24 +55,36 @@ function MediaRow({ item }: { item: MediaItem }) {
         <div className="media-line">
           <span className="media-type">{mediaTypeLabel(item.type)}</span>
           <strong>{item.quality}</strong>
-          {item.ext ? <span className="pill">{item.ext.toUpperCase()}</span> : null}
+          {format ? <span className="pill">{format}</span> : null}
         </div>
         <div className="media-meta">
           {dimensions(item)}
           {item.filesize ? <span>{formatBytes(item.filesize)}</span> : null}
         </div>
       </div>
-      <a
-        className="download-link"
-        href={item.url}
-        target="_blank"
-        rel="noreferrer"
-        aria-label="下载"
-        title="下载"
-      >
-        <Download aria-hidden="true" />
-        <span>下载</span>
-      </a>
+      <div className="media-actions">
+        <a
+          className="download-link"
+          href={item.url}
+          download
+          target="_blank"
+          rel="noreferrer"
+          aria-label={`下载 ${actionDetail}`}
+        >
+          <Download aria-hidden="true" />
+          <span>下载</span>
+        </a>
+        <a
+          className="open-link"
+          href={item.url}
+          target="_blank"
+          rel="noreferrer"
+          aria-label={`打开 ${actionDetail}`}
+        >
+          <ExternalLink aria-hidden="true" />
+          <span>打开</span>
+        </a>
+      </div>
     </article>
   );
 }
@@ -79,6 +97,10 @@ function mediaTypeLabel(type: MediaItem["type"]) {
     return "GIF";
   }
   return "视频";
+}
+
+function mediaFormat(item: MediaItem) {
+  return item.ext ? item.ext.toUpperCase() : "";
 }
 
 function dimensions(item: MediaItem) {

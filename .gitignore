@@ -2,11 +2,13 @@
 .npm-cache/
 backups/
 .pytest_cache/
+pytest-cache-files-*/
 __pycache__/
 *.py[cod]
 
 backend/.venv/
 backend/.pytest_cache/
+backend/pytest-cache-files-*/
 
 frontend/node_modules/
 frontend/dist/

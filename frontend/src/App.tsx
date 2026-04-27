@@ -27,7 +27,7 @@ export default function App() {
     try {
       setResult(await extractMedia(trimmedUrl));
     } catch (caught) {
-      setError(caught instanceof Error ? caught.message : "请求失败，请稍后重试。");
+      setError(caught instanceof Error ? caught.message : "解析失败，请稍后重试。");
     } finally {
       setIsLoading(false);
     }
@@ -36,14 +36,12 @@ export default function App() {
   return (
     <main className="app-shell">
       <header className="topbar">
-        <div>
-          <p className="eyebrow">XDownloader</p>
-          <h1>X/Twitter 媒体下载器</h1>
-        </div>
+        <p className="eyebrow">XDownloader</p>
+        <h1>保存 X/Twitter 媒体</h1>
       </header>
 
       <form className="extract-form" onSubmit={handleSubmit}>
-        <label htmlFor="tweet-url">帖子链接</label>
+        <label htmlFor="tweet-url">X/Twitter 链接</label>
         <div className="input-row">
           <input
             id="tweet-url"
@@ -51,13 +49,21 @@ export default function App() {
             onChange={(event) => setUrl(event.target.value)}
             placeholder="https://x.com/user/status/1234567890"
             autoComplete="off"
+            inputMode="url"
           />
           <button type="submit" disabled={isLoading}>
             {isLoading ? <Loader2 className="spin" aria-hidden="true" /> : <Search aria-hidden="true" />}
-            <span>{isLoading ? "解析中" : "解析媒体"}</span>
+            <span>{isLoading ? "正在解析" : "解析"}</span>
           </button>
         </div>
       </form>
+
+      {isLoading ? (
+        <div className="message info" role="status">
+          <Loader2 className="spin" aria-hidden="true" />
+          <span>正在解析，Render 免费服务首次唤醒可能需要几十秒。</span>
+        </div>
+      ) : null}
 
       {error ? (
         <div className="message error" role="alert">

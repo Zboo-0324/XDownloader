@@ -30,3 +30,4 @@ def test_validate_tweet_url_rejects_non_public_status_urls(url):
         validate_tweet_url(url)
 
     assert exc_info.value.code == "INVALID_URL"
+    assert exc_info.value.message == "请输入公开的 X/Twitter 帖子链接。"

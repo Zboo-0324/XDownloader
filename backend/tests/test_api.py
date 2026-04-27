@@ -1,8 +1,22 @@
 from fastapi.testclient import TestClient
 
 from app.errors import ExtractorError
-from app.main import app
+from app.main import app, build_cors_origins
 from app.schemas import ExtractResponse, MediaItem
+
+
+def test_build_cors_origins_includes_configured_deployments(monkeypatch):
+    monkeypatch.setenv(
+        "XDOWNLOADER_CORS_ORIGINS",
+        "https://xdownloader.example, https://preview.example/",
+    )
+
+    assert build_cors_origins() == [
+        "http://localhost:5173",
+        "http://127.0.0.1:5173",
+        "https://xdownloader.example",
+        "https://preview.example",
+    ]
 
 
 def test_extract_endpoint_returns_media(monkeypatch):

@@ -24,11 +24,16 @@ export class ApiError extends Error {
   }
 }
 
+function buildApiUrl(path: string): string {
+  const baseUrl = import.meta.env.VITE_API_BASE_URL?.replace(/\/+$/, "") ?? "";
+  return `${baseUrl}${path}`;
+}
+
 export async function extractMedia(
   url: string,
   fetcher: FetchLike = fetch
 ): Promise<ExtractResponse> {
-  const response = await fetcher("/api/extract", {
+  const response = await fetcher(buildApiUrl("/api/extract"), {
     method: "POST",
     headers: { "Content-Type": "application/json" },
     body: JSON.stringify({ url })
