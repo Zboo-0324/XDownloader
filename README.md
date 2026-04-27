@@ -97,3 +97,13 @@ npm.cmd run build
 ## 后续方向
 
 下一步优先开发 Android APP。建议复用当前后端的 `/api/extract`，Android 端做独立原生界面；如果要完全离线独立解析，需要在 Android 内嵌 Python/yt-dlp，复杂度和维护成本明显更高。
+
+## 公网部署
+
+项目根目录提供了 `render.yaml`，可把后端部署到 Render 免费 Web Service。
+
+部署文档见：
+
+```text
+docs/render-deployment.md
+```
