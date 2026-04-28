@@ -40,3 +40,26 @@ XDOWNLOADER_CORS_ORIGINS=https://app.example,https://preview.example
 - 当前版本只解析并返回媒体直链，不代理媒体文件。
 - 当前版本只支持公开 X/Twitter 帖子。
 - 不要把私人账号 cookies 放到服务端。
+
+## Optional X cookies
+
+For private personal use, the backend can pass an X account cookies file to
+`yt-dlp`. Store the cookies only on the backend Render service, never on the
+frontend static site.
+
+1. Export X cookies in Netscape `cookies.txt` format from a browser logged in
+   to the account you want to use.
+2. Convert the file to base64 locally:
+
+```powershell
+[Convert]::ToBase64String([IO.File]::ReadAllBytes("C:\path\to\x-cookies.txt")) | Set-Clipboard
+```
+
+3. Add this backend environment variable in Render:
+
+```text
+XDOWNLOADER_X_COOKIES_B64=<paste base64 cookies.txt content>
+```
+
+After saving the variable, redeploy the backend. Do not commit cookies or base64
+cookies to git, and do not add this value to frontend environment variables.

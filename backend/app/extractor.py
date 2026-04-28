@@ -1,10 +1,16 @@
 import asyncio
+import base64
+import binascii
+import hashlib
 import json
 import logging
 import math
+import os
+import tempfile
 import urllib.error
 import urllib.request
 from collections.abc import Callable, Iterable
+from pathlib import Path
 from typing import Any
 from urllib.parse import parse_qs, urlencode, urlparse, urlunparse
 
@@ -17,6 +23,7 @@ ExtractInfoFn = Callable[[str], dict[str, Any]]
 
 _IMAGE_EXTENSIONS = {"jpg", "jpeg", "png", "webp", "gif"}
 _VIDEO_EXTENSIONS = {"mp4", "mov", "m4v", "webm"}
+_X_COOKIES_ENV = "XDOWNLOADER_X_COOKIES_B64"
 _NO_MEDIA_MESSAGE = "没有找到可下载的媒体。帖子可能没有公开视频或图片，或已删除、受限、需要登录。"
 logger = logging.getLogger(__name__)
 
@@ -111,8 +118,43 @@ def _extract_info_with_ytdlp(url: str) -> dict[str, Any]:
         "noplaylist": True,
         "socket_timeout": 25,
     }
+    cookiefile = _cookiefile_from_env()
+    if cookiefile:
+        options["cookiefile"] = cookiefile
+
     with YoutubeDL(options) as ydl:
         return ydl.extract_info(url, download=False)
+
+
+def _cookiefile_from_env() -> str | None:
+    encoded = os.getenv(_X_COOKIES_ENV)
+    if not encoded:
+        return None
+
+    normalized = "".join(encoded.split())
+    try:
+        cookie_bytes = base64.b64decode(normalized, validate=True)
+    except (binascii.Error, ValueError):
+        logger.warning("%s is not valid base64; continuing without X cookies", _X_COOKIES_ENV)
+        return None
+
+    if not cookie_bytes.strip():
+        return None
+
+    digest = hashlib.sha256(cookie_bytes).hexdigest()[:16]
+    cookie_path = Path(tempfile.gettempdir()) / f"xdownloader-x-cookies-{digest}.txt"
+    try:
+        if not cookie_path.exists() or cookie_path.read_bytes() != cookie_bytes:
+            cookie_path.write_bytes(cookie_bytes)
+            try:
+                cookie_path.chmod(0o600)
+            except OSError:
+                pass
+    except OSError:
+        logger.exception("Failed to prepare X cookies file")
+        return None
+
+    return str(cookie_path)
 
 
 def _extract_syndication_info(url: str) -> dict[str, Any] | None:

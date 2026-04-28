@@ -1,10 +1,19 @@
+import base64
 import asyncio
 import logging
+import sys
+from pathlib import Path
+from types import SimpleNamespace
 
 import pytest
 
 from app.errors import ExtractorError
-from app.extractor import extract_media, normalize_info, _syndication_info_from_payload
+from app.extractor import (
+    _extract_info_with_ytdlp,
+    _syndication_info_from_payload,
+    extract_media,
+    normalize_info,
+)
 
 
 def test_normalize_info_returns_sorted_video_formats():
@@ -133,6 +142,59 @@ def test_syndication_info_from_payload_returns_photo_entries():
         "height": 900,
         "ext": "jpg",
     }
+
+
+def test_ytdlp_options_do_not_include_cookiefile_without_cookie_env(monkeypatch):
+    captured_options = {}
+
+    class FakeYoutubeDL:
+        def __init__(self, options):
+            captured_options.update(options)
+
+        def __enter__(self):
+            return self
+
+        def __exit__(self, *_args):
+            return None
+
+        def extract_info(self, url, download):
+            return {"url": url, "download": download}
+
+    monkeypatch.delenv("XDOWNLOADER_X_COOKIES_B64", raising=False)
+    monkeypatch.setitem(sys.modules, "yt_dlp", SimpleNamespace(YoutubeDL=FakeYoutubeDL))
+
+    _extract_info_with_ytdlp("https://x.com/alice/status/1")
+
+    assert "cookiefile" not in captured_options
+
+
+def test_ytdlp_options_include_cookiefile_from_base64_env(monkeypatch):
+    captured_options = {}
+    cookie_text = "# Netscape HTTP Cookie File\n.x.com\tTRUE\t/\tTRUE\t0\tauth_token\tsecret\n"
+
+    class FakeYoutubeDL:
+        def __init__(self, options):
+            captured_options.update(options)
+
+        def __enter__(self):
+            return self
+
+        def __exit__(self, *_args):
+            return None
+
+        def extract_info(self, url, download):
+            return {"url": url, "download": download}
+
+    monkeypatch.setenv(
+        "XDOWNLOADER_X_COOKIES_B64",
+        base64.b64encode(cookie_text.encode("utf-8")).decode("ascii"),
+    )
+    monkeypatch.setitem(sys.modules, "yt_dlp", SimpleNamespace(YoutubeDL=FakeYoutubeDL))
+
+    _extract_info_with_ytdlp("https://x.com/alice/status/1")
+
+    cookiefile = Path(captured_options["cookiefile"])
+    assert cookiefile.read_text(encoding="utf-8") == cookie_text
 
 
 def test_normalize_info_raises_no_media_when_nothing_downloadable_exists():
